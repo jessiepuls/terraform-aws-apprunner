@@ -1,0 +1,36 @@
+name: Production Pipeline
+on:
+  workflow_dispatch:
+env:
+  AWS_ACCESS_KEY_ID: secret.AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY: secret.AWS_SECRET_ACCESS_KEY
+jobs:
+  tag-prod-image:
+    runs-on: ubuntu-latest
+    needs: []
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          ref: main
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID}}
+          aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+          aws-region: us-east-2
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Setup Environment
+        run: |
+          echo "ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY=YOUR_ECR_REPO_NAME_HERE" >> $GITHUB_ENV
+      - name: Retag image for Production
+        run: |
+          echo "Tagging $ECR_REGISTRY/$ECR_REPOSITORY:production"
+          MANIFEST=$(aws ecr batch-get-image --repository-name $ECR_REPOSITORY --image-ids imageTag=latest --query 'images[].imageManifest' --output text)
+          aws ecr put-image --repository-name $ECR_REPOSITORY --image-tag production --image-manifest "$MANIFEST"
+          aws ecr describe-images --repository-name $ECR_REPOSITORY
